@@ -24,6 +24,13 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
         home.h home.cpp
+        menubar.h menubar.cpp
+
+        textconverter.h textconverter.cpp
+        textanalyzer.h textanalyzer.cpp
+        highlighter.h highlighter.cpp
+        highlighter.h highlighter.cpp
+        codeeditor.h codeeditor.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET Hex_Editor_V01 APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
