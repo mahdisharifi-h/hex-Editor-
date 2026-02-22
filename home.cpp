@@ -1153,7 +1153,7 @@ void Home::openRecentSearchResult(QListWidgetItem *item) {
         return;
     }
 
-    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    openFile(path);
 }
 
 void Home::applySearchToCurrentTab() {
