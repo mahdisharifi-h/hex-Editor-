@@ -336,6 +336,7 @@ void Home::openFile(const QString &path) {
     editorSplit->addWidget(rightEd);
     tabs->addTab(editorSplit, QFileInfo(path).fileName());
 
+
     connect(leftEd, &CodeEditor::cursorPositionChanged, this, &Home::onCursorChanged);
     connect(rightEd, &CodeEditor::cursorPositionChanged, this, &Home::onCursorChanged);
     connect(leftEd, &CodeEditor::textChanged, this, &Home::onEditorTextChanged);
@@ -344,6 +345,7 @@ void Home::openFile(const QString &path) {
             rightEd->verticalScrollBar(), &QScrollBar::setValue);
     connect(rightEd->verticalScrollBar(), &QScrollBar::valueChanged,
             leftEd->verticalScrollBar(), &QScrollBar::setValue);
+
     updateui();
     applySearchToCurrentTab();
 
@@ -358,12 +360,12 @@ void Home::onCursorChanged() {
 
     if (!leftEd || !rightEd) return;
 
-
     if (leftEd->hasFocus()) {
         lastActiveEditor = leftEd;
         tabStates[tabs->currentIndex()].lastSearchFromRight = false;
         syncEditors(leftEd, rightEd);
-    } else if (rightEd->hasFocus()) {
+    }
+    else if (rightEd->hasFocus()) {
         lastActiveEditor = rightEd;
         tabStates[tabs->currentIndex()].lastSearchFromRight = true;
         syncEditors(rightEd, leftEd);
@@ -379,7 +381,6 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
     int currentIndex = tabs->currentIndex();
 
     EditorMode activeMode = tabStates[currentIndex].mode;
-
 
     QTextCursor sc = source->textCursor();
     QTextCursor tc = target->textCursor();
@@ -397,16 +398,35 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
     int sourceDocLength = source->document()->characterCount();
     int targetDocLength = target->document()->characterCount();
 
+    /*if (isRightToLeft) {
+        const int chunkSize = detectChunkSizeForEditor(source);
+         qDebug()<<"chunkSize"<<chunkSize;
+         qDebug()<<"sourc_2"<<source->toPlainText();
+         qDebug()<<"sourceDocLength"<<sourceDocLength;
+
+        if (sc.hasSelection()) {
+            alignSelectionToChunk(sc, chunkSize, sourceDocLength);
+        } else {
+            alignCursorToChunk(sc, chunkSize, sourceDocLength);
+        }
+    }*/
+
+
+
     if (sc.hasSelection()) {
         int startPos = sc.selectionStart();
         int endPos = sc.selectionEnd();
         int newStart, newEnd;
+        qDebug()<<"check 1";
 
-       //uonisod ==3  hex ==1  text==0 bayj ===2
+
+        //uonisod ==3  hex ==1  text==0 bayj ===2
 
         if (isRightToLeft) {
+            qDebug()<<"check 1-2";
 
             if(activeMode == 3 && TextAnalyzer::detectType(target->toPlainText())==0){
+                qDebug()<<"check 1-2-1";
                 if (TextAnalyzer::detectType(source->toPlainText())==0 )factor = 1 ;
                 else if (TextAnalyzer::detectType(source->toPlainText())==1 )factor = 3;
                 else if (TextAnalyzer::detectType(source->toPlainText())==2 )factor = 9;
@@ -420,6 +440,7 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
             }
 
             else if(activeMode == 3 && TextAnalyzer::detectType(target->toPlainText())==1){
+                qDebug()<<"check 1-2-2";
                 if (TextAnalyzer::detectType(source->toPlainText())==0 )factor = 3 ;
                 else if (TextAnalyzer::detectType(source->toPlainText())==1 )factor = 1;
                 else if (TextAnalyzer::detectType(source->toPlainText())==2 )factor = 9;
@@ -434,6 +455,7 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
 
             }
             else if(activeMode == 3 && TextAnalyzer::detectType(target->toPlainText())==2){
+                qDebug()<<"check 1-2-3";
                 if (TextAnalyzer::detectType(source->toPlainText())==0 )factor = 9 ;
                 else if (TextAnalyzer::detectType(source->toPlainText())==1 )factor = 3;
                 else if (TextAnalyzer::detectType(source->toPlainText())==2 )factor = 1;
@@ -447,6 +469,7 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
                 newEnd = round(newEnd);
             }
             else if(activeMode == 3 && TextAnalyzer::detectType(target->toPlainText())==3 ){
+                qDebug()<<"check 1-2-4";
 
                 if (TextAnalyzer::detectType(source->toPlainText())==0 )factor = 1 ;
                 else if (TextAnalyzer::detectType(source->toPlainText())==1 )factor = 6;
@@ -461,6 +484,7 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
             }
 
             else{
+                qDebug()<<"check 1-2-5";
                 newStart = startPos / factor;
                 newEnd =endPos / factor;
                 newEnd = newEnd+2 == targetDocLength ?newEnd+1:newEnd;
@@ -469,8 +493,10 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
             }
 
         } else {
+            qDebug()<<"check 1_3";
 
             if(activeMode == 3 && TextAnalyzer::detectType(target->toPlainText())==0){
+                qDebug()<<"check 1-3-1";
                 if (TextAnalyzer::detectType(source->toPlainText())==0 )factor = 1 ;
                 else if (TextAnalyzer::detectType(source->toPlainText())==1 )factor = 3;
                 else if (TextAnalyzer::detectType(source->toPlainText())==2 )factor = 9;
@@ -481,11 +507,12 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
                 newEnd = round(newEnd);
             }
             else if(activeMode == 3 && TextAnalyzer::detectType(target->toPlainText())==1){
+                qDebug()<<"check 1-3-2";
                 if (TextAnalyzer::detectType(source->toPlainText())==0 )factor = 3 ;
                 else if (TextAnalyzer::detectType(source->toPlainText())==1 )factor = 1;
                 else if (TextAnalyzer::detectType(source->toPlainText())==2 )factor = 9;
                 else if (TextAnalyzer::detectType(source->toPlainText())==3 )factor = 6;
-                qDebug()<<"factor_new _1"<<factor;
+
                 newStart = startPos / factor;
                 newEnd =endPos / factor;
                 newEnd = newEnd+2 == targetDocLength ?newEnd+1:newEnd;
@@ -493,6 +520,7 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
 
             }
             else if(activeMode == 3 && TextAnalyzer::detectType(target->toPlainText())==2){
+                qDebug()<<"check 1-3-3";
                 if (TextAnalyzer::detectType(source->toPlainText())==0 )factor = 9 ;
                 else if (TextAnalyzer::detectType(source->toPlainText())==1 )factor = 3;
                 else if (TextAnalyzer::detectType(source->toPlainText())==2 )factor = 1;
@@ -504,12 +532,12 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
                 newEnd = round(newEnd);
             }
             else if(activeMode == 3 && TextAnalyzer::detectType(target->toPlainText())==3 ){
-
+                qDebug()<<"check 1-3-4";
                 if (TextAnalyzer::detectType(source->toPlainText())==0 )factor = 1 ;
                 else if (TextAnalyzer::detectType(source->toPlainText())==1 )factor = 3;
                 else if (TextAnalyzer::detectType(source->toPlainText())==2 )factor = 9;
                 else if (TextAnalyzer::detectType(source->toPlainText())==3 )factor = 6;
-                qDebug()<<"wlcome to uonicod  '/n' factor = "<<factor;
+
                 newStart = startPos / factor;
                 newEnd =endPos / factor;
                 newEnd = newEnd+2 == targetDocLength ?newEnd+1:newEnd;
@@ -517,7 +545,8 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
             }
 
             else{
-                qDebug()<<"wlcom eto else '/n' factor = "<<factor;
+                qDebug()<<"check 1_3-5";
+
                 newStart = startPos * factor;
 
                 newEnd = endPos * factor;
@@ -536,27 +565,34 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
             qSwap(newStart, newEnd);
         }
 
-        qDebug() << "Setting Start:" << newStart << "End:" << newEnd;
+
         tc.setPosition(newStart);
 
         tc.setPosition(newEnd, QTextCursor::KeepAnchor);
-     } else {
+    } else {
+        qDebug()<<"check 2";
         const int sourcePos = sc.position();
+        qDebug()<<"sours posetion"<<sourcePos;
         int newPos = isRightToLeft ? sourcePos * factor : sourcePos / factor;
         newPos = qBound(0, newPos, qMax(0, targetDocLength - 1));
 
 
         const bool shouldHighlightHexPair =
             activeMode == ModeHex && !isRightToLeft && target == split->widget(1);
-
+        qDebug()<<"shouldHighlightHexPair hex"<<shouldHighlightHexPair;
         if (shouldHighlightHexPair && targetDocLength > 0) {
             const int sourceByteIndex = qMax(0, sourcePos - 1);
+            qDebug()<<"sourceByteIndex"<<sourceByteIndex;
             int highlightStart = qBound(0, sourceByteIndex * 3, targetDocLength - 1);
+            qDebug()<<"highlightStart"<<highlightStart;
             int highlightEnd = qMin(highlightStart + 2, targetDocLength - 1);
+            qDebug()<<"highlightEnd"<<highlightEnd;
 
             tc.setPosition(highlightStart);
             tc.setPosition(highlightEnd + 1, QTextCursor::KeepAnchor);
         } else {
+            qDebug()<<"else hex ";
+
             tc.setPosition(newPos);
         }
     }
@@ -609,6 +645,10 @@ void Home::syncTextEditors(CodeEditor *source, CodeEditor *target) {
     const bool sourceIsLeft = (source == leftEd);
 
     const EditorMode mode = tabStates[currentIndex].mode;
+    if (mode == ModeText && !sourceIsLeft) {
+        return;
+    }
+
     const QString sourceText = source->toPlainText();
 
     QString converted;
@@ -869,6 +909,7 @@ void Home::menu(const QString &name){
         }
     }else if (name == "To Text") {
         QSplitter *split = qobject_cast<QSplitter*>(tabs->currentWidget());
+        qDebug()<<"openspliter";
         if (!split) return;
         int index = tabs->currentIndex();
         tabStates[index].mode = ModeText;
@@ -884,6 +925,7 @@ void Home::menu(const QString &name){
 
 
             TextType type = TextAnalyzer::detectType(currentContent);
+            qDebug()<<"type"<<type;
 
 
             if (type == TYPE_UNICODE) {
@@ -971,7 +1013,7 @@ void Home::onTabChanged(int index) {
 
     if (index == -1) return;
 
-    qDebug() << "Tab changed to:" << index;
+
 
     QSplitter *split = qobject_cast<QSplitter*>(tabs->widget(index));
     if (!split) return;
@@ -1151,7 +1193,6 @@ void Home::openRecentSearchResult(QListWidgetItem *item) {
 }
 
 void Home::applySearchToCurrentTab() {
-
     QSplitter *split = qobject_cast<QSplitter*>(tabs->currentWidget());
     if (!split) return;
 
@@ -1193,6 +1234,3 @@ void Home::applySearchToCurrentTab() {
     rightEd->setSearchText(rightQuery);
     updateSearchStatus();
 }
-
-
-
