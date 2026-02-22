@@ -23,7 +23,6 @@ class Home : public QMainWindow {
 
     struct TabState {
         EditorMode mode = ModeHex;
-        int  txtClik = 1;
         int leftCursorPos = 0;
         int rightCursorPos = 0;
         QString leftText;
@@ -40,6 +39,7 @@ private slots:
     void onEditorTextChanged();
 
 private:
+    CodeEditor *lastActiveEditor = nullptr;
     TextAnalyzer *detectType(const QString &text);
     QMap<int, TabState> tabStates;
     void onTabChanged(int index);

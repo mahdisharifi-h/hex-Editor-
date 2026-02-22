@@ -228,11 +228,11 @@ Home::Home(QWidget *parent) : QMainWindow(parent) {
     searchInput->setPlaceholderText("Type to highlight matches...");
     searchLayout->addWidget(searchInput);
 
-    QPushButton *prevSearchBtn = new QPushButton("▲", searchBarWidget);
+    QPushButton *prevSearchBtn = new QPushButton("▼", searchBarWidget);
     prevSearchBtn->setFixedWidth(28);
     searchLayout->addWidget(prevSearchBtn);
 
-    QPushButton *nextSearchBtn = new QPushButton("▼", searchBarWidget);
+    QPushButton *nextSearchBtn = new QPushButton("▲", searchBarWidget);
     nextSearchBtn->setFixedWidth(28);
     searchLayout->addWidget(nextSearchBtn);
 
@@ -360,9 +360,11 @@ void Home::onCursorChanged() {
 
 
     if (leftEd->hasFocus()) {
+        lastActiveEditor = leftEd;
         tabStates[tabs->currentIndex()].lastSearchFromRight = false;
         syncEditors(leftEd, rightEd);
     } else if (rightEd->hasFocus()) {
+        lastActiveEditor = rightEd;
         tabStates[tabs->currentIndex()].lastSearchFromRight = true;
         syncEditors(rightEd, leftEd);
     }
@@ -382,9 +384,6 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
     QTextCursor sc = source->textCursor();
     QTextCursor tc = target->textCursor();
 
-
-
-
     int factor = 3;
 
     if (activeMode == 1) factor = 9;
@@ -398,27 +397,12 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
     int sourceDocLength = source->document()->characterCount();
     int targetDocLength = target->document()->characterCount();
 
-    if (isRightToLeft) {
-        const int chunkSize = detectChunkSizeForEditor(source);
-        if (sc.hasSelection()) {
-            alignSelectionToChunk(sc, chunkSize, sourceDocLength);
-        } else {
-            alignCursorToChunk(sc, chunkSize, sourceDocLength);
-        }
-    }
-
-
-
     if (sc.hasSelection()) {
         int startPos = sc.selectionStart();
         int endPos = sc.selectionEnd();
         int newStart, newEnd;
 
-        qDebug()<<"start"<<startPos;
-        qDebug()<<"endt"<<endPos;
-
-
-        //uonisod ==3  hex ==1  text==0 bayj ===2
+       //uonisod ==3  hex ==1  text==0 bayj ===2
 
         if (isRightToLeft) {
 
@@ -556,7 +540,7 @@ void Home::syncEditors(CodeEditor *source, CodeEditor *target) {
         tc.setPosition(newStart);
 
         tc.setPosition(newEnd, QTextCursor::KeepAnchor);
-    } else {
+     } else {
         const int sourcePos = sc.position();
         int newPos = isRightToLeft ? sourcePos * factor : sourcePos / factor;
         newPos = qBound(0, newPos, qMax(0, targetDocLength - 1));
@@ -897,7 +881,7 @@ void Home::menu(const QString &name){
             saveCurrentTabState();
 
             QString currentContent = textEd->toPlainText();
-            if(tabStates[index].txtClik>1)currentContent = hexEd->toPlainText();
+
 
             TextType type = TextAnalyzer::detectType(currentContent);
 
@@ -1056,7 +1040,8 @@ void Home::showSearchBar() {
     updateSearchStatus();
 }
 
-void Home::navigateSearchMatch(bool forward) {
+void Home::navigateSearchMatch(bool forward)
+{
     QSplitter *split = qobject_cast<QSplitter*>(tabs->currentWidget());
     if (!split) return;
 
@@ -1064,20 +1049,17 @@ void Home::navigateSearchMatch(bool forward) {
     CodeEditor *rightEd = qobject_cast<CodeEditor*>(split->widget(1));
     if (!leftEd || !rightEd) return;
 
-    CodeEditor *activeEditor = nullptr;
-    if (rightEd->hasFocus()) {
-        activeEditor = rightEd;
-    } else if (leftEd->hasFocus()) {
-        activeEditor = leftEd;
-    } else {
-        activeEditor = leftEd;
-    }
+    CodeEditor *activeEditor = lastActiveEditor;
 
-    const bool moved = forward ? activeEditor->jumpToNextSearchMatch()
-                               : activeEditor->jumpToPreviousSearchMatch();
-    if (moved) {
+    if (!activeEditor)
+        activeEditor = leftEd;
+
+    const bool moved = forward ?
+                           activeEditor->jumpToNextSearchMatch() :
+                           activeEditor->jumpToPreviousSearchMatch();
+
+    if (moved)
         activeEditor->setFocus();
-    }
 
     updateSearchStatus();
 }
@@ -1103,10 +1085,22 @@ void Home::updateSearchStatus() {
         return;
     }
 
-    CodeEditor *activeEditor = rightEd->hasFocus() ? rightEd : leftEd;
+    CodeEditor *activeEditor = nullptr;
+
+    if (rightEd->hasFocus()) {
+        activeEditor = rightEd;
+    } else if (leftEd->hasFocus()) {
+        activeEditor = leftEd;
+    } else {
+        activeEditor = leftEd;
+    }
     const int total = activeEditor->searchMatchCount();
     const int index = activeEditor->currentSearchMatchIndex();
-    searchStatusLabel->setText(QString::number(index) + "/" + QString::number(total));
+    if (total == 0) {
+        searchStatusLabel->setText("0 / 0");
+    } else {
+        searchStatusLabel->setText(QString("%1 / %2").arg(index + 1).arg(total));
+    }
 }
 
 void Home::updateRecentSearchResults() {
@@ -1157,6 +1151,7 @@ void Home::openRecentSearchResult(QListWidgetItem *item) {
 }
 
 void Home::applySearchToCurrentTab() {
+
     QSplitter *split = qobject_cast<QSplitter*>(tabs->currentWidget());
     if (!split) return;
 
@@ -1174,6 +1169,7 @@ void Home::applySearchToCurrentTab() {
 
 
     const TextType queryType = detectSearchQueryType(query);
+    qDebug()<<"text type "<<queryType;
     QString queryAsText = convertQueryToText(query, queryType);
     if (queryAsText.isEmpty()) {
         queryAsText = query;
@@ -1197,3 +1193,6 @@ void Home::applySearchToCurrentTab() {
     rightEd->setSearchText(rightQuery);
     updateSearchStatus();
 }
+
+
+

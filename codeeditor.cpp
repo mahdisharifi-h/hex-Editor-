@@ -68,54 +68,101 @@ bool CodeEditor::isValidTokenCharacter(const QChar &ch) const {
 
 void CodeEditor::keyPressEvent(QKeyEvent *event) {
     const int tokenLength = expectedTokenLength();
-    if (isReadOnly() || tokenLength <= 0) {
+    QTextCursor cursor = textCursor();
+    const QString enteredText = event->text();
+
+    if (event->key() == Qt::Key_A && event->modifiers() == Qt::ControlModifier) {
+        selectAll();
+        updateSelections();
+
+        if (cursor.atEnd()) {
+            cursor.setPosition(document()->characterCount() - 1);
+            setTextCursor(cursor);
+        }
+        return;
+    }
+
+    if (isReadOnly() || tokenLength <= 0 || enteredText.isEmpty()) {
         QPlainTextEdit::keyPressEvent(event);
         return;
     }
 
-    if (event->key() == Qt::Key_Space && groupingMode != GroupingUnicode) {
-        QTextCursor cursor = textCursor();
-        if (!cursor.hasSelection()) {
-            const int blockStart = (cursor.position() / (tokenLength + 1)) * (tokenLength + 1);
-            const int indexInToken = cursor.position() - blockStart;
+    QChar ch = enteredText.at(0);
 
-            if (indexInToken > 0 && indexInToken < tokenLength) {
-                QString zeros(tokenLength - indexInToken, QLatin1Char('0'));
-                zeros += QLatin1Char(' ');
-                cursor.insertText(zeros);
+    if ((event->key() == Qt::Key_Backspace || event->key() == Qt::Key_Delete) && !cursor.hasSelection()) {
+        const int step = tokenLength + (groupingSeparator().isNull() ? 0 : 1);
+
+        if (event->key() == Qt::Key_Backspace) {
+            const int removeCount = qMin(step, cursor.position());
+            if (removeCount > 0) {
+                cursor.movePosition(QTextCursor::Left, QTextCursor::KeepAnchor, removeCount);
+                cursor.removeSelectedText();
                 setTextCursor(cursor);
-                return;
+            }
+        } else {
+            cursor.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor, step);
+            if (cursor.hasSelection()) {
+                cursor.removeSelectedText();
+                setTextCursor(cursor);
             }
         }
+        return;
     }
 
-    const QString enteredText = event->text();
-    QChar c = enteredText.at(0);
-    QChar::Category cat = c.category();
-    if (cat != QChar::Other_Control) {
-        const QChar ch = enteredText.at(0);
-        const QChar separator = groupingSeparator();
-
-        if ((separator.isNull() || ch != separator) && !isValidTokenCharacter(ch)) {
+    if (groupingMode == GroupingUnicode) {
+        if (ch == '\\' && !cursor.hasSelection()) {
+            cursor.insertText("\\u");
+            setTextCursor(cursor);
             return;
         }
 
-        if (!separator.isNull() && ch != separator) {
-            QTextCursor cursor = textCursor();
-            if (!cursor.hasSelection()) {
-                const int groupSize = tokenLength + 1;
-                const int indexInToken = cursor.position() % groupSize;
-                if (indexInToken == tokenLength) {
-                    cursor.insertText(QString(separator));
-                    setTextCursor(cursor);
-                }
-            }
+        if ((ch.isDigit() || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f'))) {
+            QPlainTextEdit::keyPressEvent(event);
+            return;
         }
+
+        if (event->key() == Qt::Key_Space) {
+            QTextBlock block = cursor.block();
+            int posInBlock = cursor.position() - block.position();
+            QString text = block.text();
+
+            int tokenStart = text.lastIndexOf("\\u", posInBlock - 1);
+            if (tokenStart < 0) tokenStart = posInBlock - 1;
+
+            int indexInToken = cursor.position() - (block.position() + tokenStart);
+            int remaining = tokenLength - indexInToken;
+            if (remaining > 0) {
+                QString fill(remaining, '0');
+                cursor.insertText(fill);
+                setTextCursor(cursor);
+            }
+            return;
+        }
+
+        return;
+    }
+
+    const QChar separator = groupingSeparator();
+    int blockStart = (cursor.position() / (tokenLength + 1)) * (tokenLength + 1);
+    int indexInToken = cursor.position() - blockStart;
+
+    if (event->key() == Qt::Key_Space || indexInToken >= tokenLength) {
+        int remaining = tokenLength - indexInToken;
+        QString fill = remaining > 0 ? QString(remaining, QLatin1Char('0')) : QString();
+        if (!separator.isNull()) fill += separator;
+
+        cursor.insertText(fill);
+        setTextCursor(cursor);
+        return;
+    }
+
+    if (!separator.isNull() && indexInToken + 1 == tokenLength) {
+        cursor.insertText(QString(separator));
+        setTextCursor(cursor);
     }
 
     QPlainTextEdit::keyPressEvent(event);
 }
-
 int CodeEditor::visibleLineCount() const {
     int lines = 0;
     QTextBlock block = document()->begin();
@@ -138,7 +185,7 @@ int CodeEditor::lineNumberAreaWidth() {
     return space;
 }
 
-void CodeEditor::updateLineNumberAreaWidth(int /* newBlockCount */) {
+void CodeEditor::updateLineNumberAreaWidth(int ) {
     const int width = lineNumberAreaWidth();
     if (layoutDirection() == Qt::RightToLeft) {
         setViewportMargins(0, 0, width, 0);
@@ -192,44 +239,25 @@ int CodeEditor::currentSearchMatchIndex() const {
 }
 
 bool CodeEditor::jumpToNextSearchMatch() {
-    if (searchQuery.isEmpty()) {
-        return false;
-    }
+    const auto selections = buildSearchSelections();
+    if (selections.isEmpty()) return false;
 
-    const QList<QTextEdit::ExtraSelection> selections = buildSearchSelections();
-    if (selections.isEmpty()) {
-        return false;
-    }
+    int currentIndex = findCurrentMatchIndex(selections);
+    int nextIndex = (currentIndex + 1) % selections.size();
 
-    int nextIndex = findCurrentMatchIndex(selections);
-    if (nextIndex >= selections.size()) {
-        nextIndex = 1;
-    }
-
-    QTextCursor targetCursor = selections[nextIndex - 1].cursor;
-    setTextCursor(targetCursor);
+    setTextCursor(selections[nextIndex].cursor);
     centerCursor();
     return true;
 }
 
 bool CodeEditor::jumpToPreviousSearchMatch() {
-    if (searchQuery.isEmpty()) {
-        return false;
-    }
+    const auto selections = buildSearchSelections();
+    if (selections.isEmpty()) return false;
 
-    const QList<QTextEdit::ExtraSelection> selections = buildSearchSelections();
-    if (selections.isEmpty()) {
-        return false;
-    }
+    int currentIndex = findCurrentMatchIndex(selections);
+    int prevIndex = (currentIndex - 1 + selections.size()) % selections.size();
 
-    const int currentIndex = findCurrentMatchIndex(selections);
-    int previousIndex = currentIndex - 1;
-    if (previousIndex <= 0) {
-        previousIndex = selections.size();
-    }
-
-    QTextCursor targetCursor = selections[previousIndex - 1].cursor;
-    setTextCursor(targetCursor);
+    setTextCursor(selections[prevIndex].cursor);
     centerCursor();
     return true;
 }
@@ -298,31 +326,27 @@ QList<QTextEdit::ExtraSelection> CodeEditor::buildSearchSelections() const {
 }
 
 int CodeEditor::findCurrentMatchIndex(const QList<QTextEdit::ExtraSelection> &selections) const {
-    if (selections.isEmpty()) {
-        return 0;
-    }
+    if (selections.isEmpty())
+        return -1;
 
     const QTextCursor current = textCursor();
-    const int currentPos = current.position();
-    const int anchorPos = current.anchor();
+    const int curPos = current.position();
 
     for (int i = 0; i < selections.size(); ++i) {
-        const QTextCursor matchCursor = selections[i].cursor;
-        if (matchCursor.selectionStart() == qMin(currentPos, anchorPos)
-            && matchCursor.selectionEnd() == qMax(currentPos, anchorPos)) {
-            return i + 1;
+        const QTextCursor selCursor = selections[i].cursor;
+        if (selCursor.selectionStart() <= curPos && curPos <= selCursor.selectionEnd()) {
+            return i;
         }
     }
 
+
     for (int i = 0; i < selections.size(); ++i) {
-        if (selections[i].cursor.selectionStart() >= currentPos) {
-            return i + 1;
-        }
+        if (selections[i].cursor.selectionStart() > curPos)
+            return i;
     }
 
-    return 1;
+    return 0;
 }
-
 void CodeEditor::updateSelections() {
     QList<QTextEdit::ExtraSelection> extraSelections = buildSearchSelections();
 
