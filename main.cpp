@@ -7,6 +7,7 @@
 #include <QStyleFactory>
 #include <QTextStream>
 #include <QScreen>
+#include <QIcon>
 #include "home.h"
 #include "textconverter.h"
 
@@ -329,6 +330,7 @@ int main(int argc, char *argv[])
     int x = (screenGeometry.width() - w.width()) / 2;
     int y = (screenGeometry.height() - w.height()) / 2;
 
+    w.setWindowIcon(QIcon(":/icons/hex_editor_icon.png"));
     w.move(x, y);
     w.show();
 
