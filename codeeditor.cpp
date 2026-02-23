@@ -72,13 +72,14 @@ void CodeEditor::keyPressEvent(QKeyEvent *event) {
     const QString enteredText = event->text();
 
     if (event->key() == Qt::Key_A && event->modifiers() == Qt::ControlModifier) {
+
+        if (cursor.atEnd()) {
+            cursor.setPosition(document()->characterCount() -2);
+            setTextCursor(cursor);
+        }
         selectAll();
         updateSelections();
 
-        if (cursor.atEnd()) {
-            cursor.setPosition(document()->characterCount() - 1);
-            setTextCursor(cursor);
-        }
         return;
     }
 
@@ -89,7 +90,7 @@ void CodeEditor::keyPressEvent(QKeyEvent *event) {
 
     QChar ch = enteredText.at(0);
 
-    if ((event->key() == Qt::Key_Backspace || event->key() == Qt::Key_Delete) && !cursor.hasSelection()) {
+    if ((event->key() == Qt::Key_Backspace || event->key() == Qt::Key_Delete) || cursor.hasSelection()) {
         const int step = tokenLength + (groupingSeparator().isNull() ? 0 : 1);
 
         if (event->key() == Qt::Key_Backspace) {
