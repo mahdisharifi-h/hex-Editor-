@@ -67,99 +67,107 @@ bool CodeEditor::isValidTokenCharacter(const QChar &ch) const {
 }
 
 void CodeEditor::keyPressEvent(QKeyEvent *event) {
+
     const int tokenLength = expectedTokenLength();
-    QTextCursor cursor = textCursor();
     const QString enteredText = event->text();
+    QTextCursor cursor = textCursor();
 
-    if (event->key() == Qt::Key_A && event->modifiers() == Qt::ControlModifier) {
-
-        if (cursor.atEnd()) {
-            cursor.setPosition(document()->characterCount() -2);
-            setTextCursor(cursor);
-        }
-        selectAll();
-        updateSelections();
-
-        return;
-    }
-
-    if (isReadOnly() || tokenLength <= 0 || enteredText.isEmpty()) {
+    if (groupingMode == GroupingText) {
         QPlainTextEdit::keyPressEvent(event);
         return;
     }
 
-    QChar ch = enteredText.at(0);
+    if (event->key() == Qt::Key_Backspace || event->key() == Qt::Key_Delete) {
 
-    if ((event->key() == Qt::Key_Backspace || event->key() == Qt::Key_Delete) || cursor.hasSelection()) {
-        const int step = tokenLength + (groupingSeparator().isNull() ? 0 : 1);
+        int step = (groupingMode == GroupingUnicode) ? 6 : (tokenLength + 1);
 
         if (event->key() == Qt::Key_Backspace) {
-            const int removeCount = qMin(step, cursor.position());
-            if (removeCount > 0) {
-                cursor.movePosition(QTextCursor::Left, QTextCursor::KeepAnchor, removeCount);
-                cursor.removeSelectedText();
-                setTextCursor(cursor);
-            }
-        } else {
-            cursor.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor, step);
+
             if (cursor.hasSelection()) {
                 cursor.removeSelectedText();
-                setTextCursor(cursor);
+            } else {
+                cursor.movePosition(QTextCursor::Left,
+                                    QTextCursor::KeepAnchor,
+                                    step);
+                cursor.removeSelectedText();
+            }
+
+        } else {
+
+            if (cursor.hasSelection()) {
+                cursor.removeSelectedText();
+            } else {
+                cursor.movePosition(QTextCursor::Right,
+                                    QTextCursor::KeepAnchor,
+                                    step);
+                cursor.removeSelectedText();
             }
         }
-        return;
-    }
 
-    if (groupingMode == GroupingUnicode) {
-        if (ch == '\\' && !cursor.hasSelection()) {
-            cursor.insertText("\\u");
-            setTextCursor(cursor);
-            return;
-        }
-
-        if ((ch.isDigit() || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f'))) {
-            QPlainTextEdit::keyPressEvent(event);
-            return;
-        }
-
-        if (event->key() == Qt::Key_Space) {
-            QTextBlock block = cursor.block();
-            int posInBlock = cursor.position() - block.position();
-            QString text = block.text();
-
-            int tokenStart = text.lastIndexOf("\\u", posInBlock - 1);
-            if (tokenStart < 0) tokenStart = posInBlock - 1;
-
-            int indexInToken = cursor.position() - (block.position() + tokenStart);
-            int remaining = tokenLength - indexInToken;
-            if (remaining > 0) {
-                QString fill(remaining, '0');
-                cursor.insertText(fill);
-                setTextCursor(cursor);
-            }
-            return;
-        }
-
-        return;
-    }
-
-    const QChar separator = groupingSeparator();
-    int blockStart = (cursor.position() / (tokenLength + 1)) * (tokenLength + 1);
-    int indexInToken = cursor.position() - blockStart;
-
-    if (event->key() == Qt::Key_Space || indexInToken >= tokenLength) {
-        int remaining = tokenLength - indexInToken;
-        QString fill = remaining > 0 ? QString(remaining, QLatin1Char('0')) : QString();
-        if (!separator.isNull()) fill += separator;
-
-        cursor.insertText(fill);
         setTextCursor(cursor);
         return;
     }
 
-    if (!separator.isNull() && indexInToken + 1 == tokenLength) {
-        cursor.insertText(QString(separator));
-        setTextCursor(cursor);
+    if (enteredText.isEmpty() && event->key() != Qt::Key_Space) {
+        QPlainTextEdit::keyPressEvent(event);
+        return;
+    }
+
+    int blockSize =
+        (groupingMode == GroupingUnicode)
+            ? 6
+            : (tokenLength + 1);
+
+    int posInBlock = cursor.positionInBlock() % blockSize;
+
+    if (event->key() == Qt::Key_Space) {
+
+        int charsEntered =
+            (groupingMode == GroupingUnicode)
+                ? (posInBlock - 2)
+                : posInBlock;
+
+        if (charsEntered > 0 && charsEntered < tokenLength) {
+            cursor.insertText(QString(tokenLength - charsEntered, '0'));
+        }
+
+        if (groupingMode != GroupingUnicode &&
+            (cursor.positionInBlock() % blockSize == tokenLength)) {
+
+            cursor.insertText(" ");
+        }
+
+        return;
+    }
+
+    if (!enteredText.isEmpty()) {
+
+        QChar ch = enteredText.at(0);
+
+        if (groupingMode == GroupingUnicode) {
+
+            if (ch == '\\') {
+                cursor.insertText("\\u");
+                return;
+            }
+
+            if (posInBlock < 2) return;
+            if (posInBlock >= 6) return;
+
+        } else {
+
+            if (posInBlock >= tokenLength) return;
+        }
+
+        if (!isValidTokenCharacter(ch)) return;
+
+        if (ch.isLower() &&
+            (groupingMode == GroupingHex ||
+             groupingMode == GroupingUnicode)) {
+
+            cursor.insertText(ch.toUpper());
+            return;
+        }
     }
 
     QPlainTextEdit::keyPressEvent(event);
